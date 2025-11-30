@@ -9,6 +9,9 @@
   "repository": "github:4wip/4protect",
   "bugs": "https://github.com/4wip/4protect-v2/issues",
   "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "@discordjs/rest": "^2.6.0",
     "date-fns": "^4.1.0",
@@ -16,7 +19,8 @@
     "discord-giveaways": "^6.0.1",
     "discord.js": "^14.24.1",
     "ms": "^2.1.3",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "@types/bun": "latest"
