@@ -1,10 +1,12 @@
 import Discord from "discord.js";
 import { EmbedBuilder } from "discord.js";
-import config from "./config.json" assert { type: 'json' };
+import fs from "fs";
 import { GiveawaysManager } from "discord-giveaways";
-import express from "express";
 
-// ====== BOT DISCORD ======
+// Lecture du config.json
+const config = JSON.parse(fs.readFileSync("./config.json", "utf-8"));
+
+// Initialisation du bot
 const bot = new Discord.Client({
     intents: 3276799,
     partials: [
@@ -22,16 +24,18 @@ bot.commands = new Discord.Collection();
 bot.slashCommands = new Discord.Collection();
 bot.setMaxListeners(70);
 
-bot.login(process.env.TOKEN) // Token lu depuis Koyeb
+// Connexion du bot avec le token depuis l'environnement
+bot.login(process.env.TOKEN)
     .then(() => {
         console.log(`[INFO] > ${bot.user.tag} est connecté`);
-        console.log(`[Invite] https://discord.com/oauth2/authorize?client_id=${bot.user.id}&permissions=8&scope=bot`);
+        console.log(`[Invite] https://discord.com/oauth2/authorize?client_id=${bot.user.id}&permissions=8&integration_type=0&scope=bot`);
+        console.log(`[Support] https://dsc.gg/4wip`);
     })
     .catch((e) => {
-        console.log('\x1b[31m[!] — Token invalide ou intents manquants\x1b[0m');
+        console.log('\x1b[31m[!] — Please configure a valid bot token or allow all the intents\x1b[0m');
     });
 
-// ====== GIVEAWAYS ======
+// Giveaways
 bot.giveawaysManager = new GiveawaysManager(bot, {
     storage: './giveaways.json',
     updateCountdownEvery: 5000,
@@ -53,7 +57,6 @@ bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
             const users = await reaction.users.fetch();
             participantsCount = users.filter(u => !u.bot).size;
         }
-
         const embed = new EmbedBuilder()
             .setTitle(giveaway.prize)
             .setDescription(
@@ -67,21 +70,9 @@ bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
     }, 1000);
 });
 
-// ====== HANDLERS ======
+// Handlers
 const commandHandler = (await import('./Handler/Commands.js')).default(bot);
 const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
 const eventHandler = (await import('./Handler/Events.js')).default(bot);
 const anticrashHandler = (await import('./Handler/anticrash.js')).default;
 anticrashHandler(bot);
-
-// ====== MINI SERVEUR POUR UPTIME ======
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => {
-    res.send("Bot en ligne ✅");
-});
-
-app.listen(PORT, () => {
-    console.log(`[INFO] > Serveur web actif sur le port ${PORT}`);
-});
