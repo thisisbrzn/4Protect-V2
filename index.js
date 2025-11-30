@@ -1,9 +1,10 @@
 import Discord from "discord.js";
 import { EmbedBuilder } from "discord.js";
-import config from "./config.json" with { type: 'json' };
+import config from "./config.json" assert { type: 'json' };
 import { GiveawaysManager } from "discord-giveaways";
+import express from "express";
 
-// Créer le client Discord
+// ----------------- BOT -----------------
 const bot = new Discord.Client({
     intents: 3276799,
     partials: [
@@ -17,23 +18,22 @@ const bot = new Discord.Client({
     ]
 });
 
-// Collections pour commandes et slash commands
 bot.commands = new Discord.Collection();
 bot.slashCommands = new Discord.Collection();
 bot.setMaxListeners(70);
 
-// Login sécurisé avec token depuis Koyeb (process.env)
-bot.login(process.env.TOKEN)
+// ----------------- LOGIN -----------------
+bot.login(config.token)
     .then(() => {
         console.log(`[INFO] > ${bot.user.tag} est connecté`);
-        console.log(`[Invite] https://discord.com/oauth2/authorize?client_id=${bot.user.id}&permissions=8&integration_type=0&scope=bot`);
+        console.log(`[Invite] https://discord.com/oauth2/authorize?client_id=${bot.user.id}&permissions=8&scope=bot`);
         console.log(`[Support] https://dsc.gg/4wip`);
     })
-    .catch(() => {
+    .catch((e) => {
         console.log('\x1b[31m[!] — Please configure a valid bot token or allow all the intents\x1b[0m');
     });
 
-// Configuration du gestionnaire de giveaways
+// ----------------- GIVEAWAYS -----------------
 bot.giveawaysManager = new GiveawaysManager(bot, {
     storage: './giveaways.json',
     updateCountdownEvery: 5000,
@@ -44,7 +44,6 @@ bot.giveawaysManager = new GiveawaysManager(bot, {
     }
 });
 
-// Gestion de la fin des giveaways
 bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
     const channel = await bot.channels.fetch(giveaway.channelId);
     const message = await channel.messages.fetch(giveaway.messageId);
@@ -69,9 +68,21 @@ bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
     }, 1000);
 });
 
-// Import des handlers
+// ----------------- HANDLERS -----------------
 const commandHandler = (await import('./Handler/Commands.js')).default(bot);
 const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
 const eventHandler = (await import('./Handler/Events.js')).default(bot);
 const anticrashHandler = (await import('./Handler/anticrash.js')).default;
 anticrashHandler(bot);
+
+// ----------------- MINI SERVEUR HTTP -----------------
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+    res.send("Bot en ligne !");
+});
+
+app.listen(PORT, () => {
+    console.log(`Serveur web actif sur le port ${PORT}`);
+});
