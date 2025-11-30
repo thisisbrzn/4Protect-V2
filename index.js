@@ -1,6 +1,6 @@
 import Discord, { EmbedBuilder, Partials, GatewayIntentBits, Collection } from "discord.js";
 import express from "express"; // serveur pour uptimerobot
-import config from "./config.js";
+import config from "./config.json";
 import { GiveawaysManager } from "discord-giveaways";
 
 // =================== Petit serveur express ===================
