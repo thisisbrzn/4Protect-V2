@@ -1,8 +1,16 @@
+# Node modules
 node_modules
+
+# Local database
 database.sqlite3
+
+# Lock files
 package-lock.json
 bun.lock
-config.json
 
-# Ignore all .DS_Store into macOS
+# Config and secrets
+config.json
+.env
+
+# macOS system files
 *.DS_Store
