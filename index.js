@@ -1,19 +1,15 @@
 import Discord from "discord.js";
-import express from "express"; // Petit serveur pour uptimerobot
+import express from "express";
 import { EmbedBuilder } from "discord.js";
-import config from "./config.js"; // On utilise config.js, pas JSON
+import config from "./config.js";
 import { GiveawaysManager } from "discord-giveaways";
 
-// =================== Serveur express ===================
+// =================== Petit serveur express ===================
 const app = express();
-
-app.get("/", (req, res) => {
-  res.send("Bot en ligne !");
-});
-
+app.get("/", (req, res) => res.send("Bot en ligne!"));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Serveur HTTP actif sur le port ${PORT}`));
-// ========================================================
+// =============================================================
 
 // =================== Client Discord ===================
 const bot = new Discord.Client({
@@ -41,7 +37,7 @@ bot.login(config.token)
     console.log(`[Support] https://dsc.gg/4wip`);
   })
   .catch(() => {
-    console.log('\x1b[31m[!] — Vérifie ton token ou les intents\x1b[0m');
+    console.log('\x1b[31m[!] — Please configure a valid bot token or allow all the intents\x1b[0m');
   });
 
 // =================== Giveaways ===================
@@ -66,6 +62,7 @@ bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
       const users = await reaction.users.fetch();
       participantsCount = users.filter(u => !u.bot).size;
     }
+
     const embed = new EmbedBuilder()
       .setTitle(giveaway.prize)
       .setDescription(
@@ -75,15 +72,14 @@ bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
         `Gagnant(s): ${winners.map(w => `<@${w.id}>`).join(', ') || "Aucun"}\n`
       )
       .setColor(config.color);
+
     await message.edit({ embeds: [embed], components: [] });
   }, 1000);
 });
 
 // =================== Handlers ===================
-(async () => {
-  const commandHandler = (await import('./Handler/Commands.js')).default(bot);
-  const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
-  const eventHandler = (await import('./Handler/Events.js')).default(bot);
-  const anticrashHandler = (await import('./Handler/anticrash.js')).default;
-  anticrashHandler(bot);
-})();
+const commandHandler = (await import('./Handler/Commands.js')).default(bot);
+const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
+const eventHandler = (await import('./Handler/Events.js')).default(bot);
+const anticrashHandler = (await import('./Handler/anticrash.js')).default;
+anticrashHandler(bot);
