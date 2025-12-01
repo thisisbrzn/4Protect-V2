@@ -1,85 +1,62 @@
-import Discord from "discord.js";
+import { Client, GatewayIntentBits, Collection } from "discord.js";
+import fs from "fs";
 import express from "express";
-import { EmbedBuilder } from "discord.js";
-import config from "./config.js";
-import { GiveawaysManager } from "discord-giveaways";
+import config from "./config.js"; // On importe le config.js qui met le token depuis l'env
 
-// =================== Petit serveur express ===================
+// ====== PREFIX ======
+const prefix = config.prefix;
+
+// ====== KEEP-ALIVE POUR KOYEB ======
 const app = express();
-app.get("/", (req, res) => res.send("Bot en ligne!"));
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Serveur HTTP actif sur le port ${PORT}`));
-// =============================================================
+app.get("/", (req, res) => {
+  res.send("Bot Actif 24/7 sur Koyeb");
+});
+app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
-// =================== Client Discord ===================
-const bot = new Discord.Client({
-  intents: 3276799,
-  partials: [
-    Discord.Partials.Channel,
-    Discord.Partials.Message,
-    Discord.Partials.User,
-    Discord.Partials.GuildMember,
-    Discord.Partials.Reaction,
-    Discord.Partials.ThreadMember,
-    Discord.Partials.GuildScheduledEvent
+// ====== CLIENT DISCORD ======
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
-bot.commands = new Discord.Collection();
-bot.slashCommands = new Discord.Collection();
-bot.setMaxListeners(70);
+// ====== COMMANDES ======
+client.commands = new Collection();
 
-// =================== Connexion du bot ===================
-bot.login(config.token)
-  .then(() => {
-    console.log(`[INFO] > ${bot.user.tag} est connecté`);
-    console.log(`[Invite] https://discord.com/oauth2/authorize?client_id=${bot.user.id}&permissions=8&scope=bot`);
-    console.log(`[Support] https://dsc.gg/4wip`);
-  })
-  .catch(() => {
-    console.log('\x1b[31m[!] — Please configure a valid bot token or allow all the intents\x1b[0m');
-  });
-
-// =================== Giveaways ===================
-bot.giveawaysManager = new GiveawaysManager(bot, {
-  storage: './giveaways.json',
-  updateCountdownEvery: 5000,
-  default: {
-    botsCanWin: false,
-    embedColor: config.color,
-    reaction: "🎉"
+// Charger les commandes automatiquement
+fs.readdirSync("./Commands").forEach(file => {
+  if (file.endsWith(".js")) {
+    import(`./Commands/${file}`).then(cmd => {
+      client.commands.set(cmd.name, cmd);
+      console.log(`Commande chargée : ${cmd.name}`);
+    });
   }
 });
 
-bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
-  const channel = await bot.channels.fetch(giveaway.channelId);
-  const message = await channel.messages.fetch(giveaway.messageId);
+// ====== MESSAGE HANDLER ======
+client.on("messageCreate", async message => {
+  if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-  setTimeout(async () => {
-    const reaction = message.reactions.cache.get("🎉");
-    let participantsCount = 0;
-    if (reaction) {
-      const users = await reaction.users.fetch();
-      participantsCount = users.filter(u => !u.bot).size;
-    }
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const commandName = args.shift().toLowerCase();
 
-    const embed = new EmbedBuilder()
-      .setTitle(giveaway.prize)
-      .setDescription(
-        `Fin: <t:${Math.floor(giveaway.endAt / 1000)}:R> <t:${Math.floor(giveaway.endAt / 1000)}:F>\n` +
-        `Organisé par: ${giveaway.hostedBy?.id || giveaway.hostedBy}\n` +
-        `Participants: ${participantsCount}\n` +
-        `Gagnant(s): ${winners.map(w => `<@${w.id}>`).join(', ') || "Aucun"}\n`
-      )
-      .setColor(config.color);
+  const command = client.commands.get(commandName);
+  if (!command) return;
 
-    await message.edit({ embeds: [embed], components: [] });
-  }, 1000);
+  try {
+    await command.run(client, message, args);
+  } catch (e) {
+    console.error(e);
+    message.reply("❌ Une erreur est survenue.");
+  }
 });
 
-// =================== Handlers ===================
-const commandHandler = (await import('./Handler/Commands.js')).default(bot);
-const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
-const eventHandler = (await import('./Handler/Events.js')).default(bot);
-const anticrashHandler = (await import('./Handler/anticrash.js')).default;
-anticrashHandler(bot);
+// ====== READY ======
+client.on("ready", () => {
+  console.log(`${client.user.tag} est en ligne !`);
+});
+
+// ====== LOGIN ======
+client.login(config.token);
