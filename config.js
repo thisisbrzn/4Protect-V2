@@ -1,9 +1,6 @@
 export default {
   token: process.env.TOKEN,
-  owners: [
-    "1429471116438671442",
-    "1329093906641457202"
-  ],
+  owners: ["1429471116438671442", "1329093906641457202"],
   prefix: "+",
   color: "#6495ed",
   titre: "Support",
