@@ -3,14 +3,15 @@ import fs from "fs";
 import path from "path";
 import express from "express";
 
+// ====== CONFIG ======
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
-config.token = process.env.TOKEN;
+config.token = process.env.TOKEN; // Token depuis Koyeb
 
 const prefix = config.prefix;
 
-// ====== KEEP ALIVE POUR KOYEB ======
+// ====== KEEP-ALIVE POUR KOYEB ======
 const app = express();
-app.get("/", (_, res) => res.send("Bot Actif 24/7 sur Koyeb"));
+app.get("/", (req, res) => res.send("Bot Actif 24/7"));
 app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
 // ====== CLIENT ======
@@ -24,53 +25,43 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// ====== LECTURE RECURSIVE DES DOSSIERS ======
-function loadCommands(dir) {
-  const files = fs.readdirSync(dir);
+// ====== CHARGEMENT DES COMMANDES ======
+const commandsPath = path.join(process.cwd(), "Commands");
 
-  for (const file of files) {
-    const fullPath = path.join(dir, file);
+fs.readdirSync(commandsPath).forEach(file => {
+  if (!file.endsWith(".js")) return;
 
-    // Sous-dossier → on continue
-    if (fs.statSync(fullPath).isDirectory()) {
-      loadCommands(fullPath);
-      continue;
-    }
+  const filePath = path.join(commandsPath, file);
 
-    // Fichier JS
-    if (file.endsWith(".js")) {
-      import(fullPath)
-        .then(module => {
-          const cmd = module.command;
+  import(`file://${filePath}`)
+    .then(module => {
+      const cmd = module.command || module.default;
+      if (!cmd || !cmd.name || !cmd.run) {
+        console.log(`❌ Commande ignorée (mauvais format) : ${file}`);
+        return;
+      }
 
-          if (!cmd || !cmd.name) return;
-
-          client.commands.set(cmd.name, cmd);
-          console.log(`Commande chargée : ${cmd.name}`);
-        })
-        .catch(err => console.error("Erreur chargement commande :", err));
-    }
-  }
-}
-
-// Charger TOUTES les commandes (même dans /Commands/Modérations etc.)
-loadCommands("./Commands");
+      client.commands.set(cmd.name, cmd);
+      console.log(`✔️ Commande chargée : ${cmd.name}`);
+    })
+    .catch(err => console.error(`Erreur chargement ${file} :`, err));
+});
 
 // ====== MESSAGE HANDLER ======
 client.on("messageCreate", async message => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const cmdName = args.shift().toLowerCase();
+  const commandName = args.shift().toLowerCase();
 
-  const cmd = client.commands.get(cmdName);
-  if (!cmd) return;
+  const command = client.commands.get(commandName);
+  if (!command) return;
 
   try {
-    await cmd.run(client, message, args);
+    await command.run(client, message, args);
   } catch (err) {
     console.error(err);
-    message.reply("❌ Une erreur est survenue.");
+    message.reply("❌ Une erreur est survenue lors de l'exécution de la commande.");
   }
 });
 
