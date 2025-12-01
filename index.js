@@ -1,9 +1,9 @@
 import { Client, GatewayIntentBits, Collection } from "discord.js";
 import fs from "fs";
 import express from "express";
-import config from "./config.js"; // On importe le config.js qui met le token depuis l'env
 
-// ====== PREFIX ======
+// ====== CONFIG ======
+const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 const prefix = config.prefix;
 
 // ====== KEEP-ALIVE POUR KOYEB ======
@@ -13,7 +13,7 @@ app.get("/", (req, res) => {
 });
 app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
-// ====== CLIENT DISCORD ======
+// ====== CLIENT ======
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -25,18 +25,21 @@ const client = new Client({
 // ====== COMMANDES ======
 client.commands = new Collection();
 
-// Charger les commandes automatiquement
-fs.readdirSync("./Commands").forEach(file => {
+// Charger les commandes
+fs.readdirSync("./Commands").forEach(async (file) => {
   if (file.endsWith(".js")) {
-    import(`./Commands/${file}`).then(cmd => {
-      client.commands.set(cmd.name, cmd);
+    const cmd = await import(`./Commands/${file}`);
+    if (cmd.name && cmd.run) {
+      client.commands.set(cmd.name.toLowerCase(), cmd);
       console.log(`Commande chargée : ${cmd.name}`);
-    });
+    } else {
+      console.log(`⚠️  Commande invalide dans le fichier : ${file}`);
+    }
   }
 });
 
 // ====== MESSAGE HANDLER ======
-client.on("messageCreate", async message => {
+client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -49,7 +52,7 @@ client.on("messageCreate", async message => {
     await command.run(client, message, args);
   } catch (e) {
     console.error(e);
-    message.reply("❌ Une erreur est survenue.");
+    message.reply("❌ Une erreur est survenue lors de l'exécution de la commande.");
   }
 });
 
