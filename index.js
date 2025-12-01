@@ -3,37 +3,31 @@ import fs from "fs";
 import express from "express";
 
 // ====== CONFIG ======
-const rawConfig = fs.readFileSync("./config.json", "utf8");
-const config = JSON.parse(rawConfig);
-config.token = process.env.TOKEN; // Token depuis Koyeb
+const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 const prefix = config.prefix;
 
-// ====== KEEP-ALIVE POUR KOYEB ======
+// ====== KEEP-ALIVE ======
 const app = express();
 app.get("/", (req, res) => res.send("Bot Actif 24/7 sur Koyeb"));
 app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
 // ====== CLIENT ======
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-// ====== COMMANDES ======
 client.commands = new Collection();
-fs.readdirSync("./Commands").forEach(file => {
-  if (file.endsWith(".js")) {
-    import(`./Commands/${file}`).then(cmd => {
-      client.commands.set(cmd.name, cmd);
-      console.log(`Commande chargée : ${cmd.name}`);
-    });
-  }
-});
 
-// ====== MESSAGE HANDLER ======
+// ====== CHARGEMENT DES COMMANDES ======
+const commandFiles = fs.readdirSync("./Commands").filter(f => f.endsWith(".js"));
+
+for (const file of commandFiles) {
+  const { name, run } = await import(`./Commands/${file}`);
+  client.commands.set(name, { run });
+  console.log(`Commande chargée : ${name}`);
+}
+
+// ====== HANDLER DE MESSAGES ======
 client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
@@ -45,9 +39,9 @@ client.on("messageCreate", async (message) => {
 
   try {
     await command.run(client, message, args);
-  } catch (e) {
-    console.error(e);
-    message.reply("❌ Une erreur est survenue.");
+  } catch (err) {
+    console.error(err);
+    message.reply("❌ Une erreur est survenue !");
   }
 });
 
