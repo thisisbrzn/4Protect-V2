@@ -1,7 +1,7 @@
 import Discord from "discord.js";
 import express from "express"; // serveur pour uptimerobot
 import { EmbedBuilder } from "discord.js";
-import config from "./config.json" assert { type: "json" };
+import config from "./config.js";
 import { GiveawaysManager } from "discord-giveaways";
 
 // =================== Petit serveur express ===================
