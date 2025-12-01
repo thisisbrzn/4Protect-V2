@@ -4,14 +4,15 @@ import path from "path";
 import express from "express";
 
 // ====== CONFIG ======
-const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
-config.token = process.env.TOKEN; // Token depuis Koyeb
+const config = JSON.parse(fs.readFileSync(new URL("./config.json", import.meta.url), "utf8"));
+// On peut remplacer le token par une variable d'environnement si tu veux
+config.token = process.env.TOKEN || config.token;
 
 const prefix = config.prefix;
 
 // ====== KEEP-ALIVE POUR KOYEB ======
 const app = express();
-app.get("/", (req, res) => res.send("Bot Actif 24/7"));
+app.get("/", (req, res) => res.send("Bot Actif 24/7 sur Koyeb"));
 app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
 // ====== CLIENT ======
@@ -26,42 +27,41 @@ const client = new Client({
 client.commands = new Collection();
 
 // ====== CHARGEMENT DES COMMANDES ======
-const commandsPath = path.join(process.cwd(), "Commands");
+const commandsPath = path.join("./Commands");
+fs.readdirSync(commandsPath).forEach(folder => {
+  const folderPath = path.join(commandsPath, folder);
+  if (!fs.statSync(folderPath).isDirectory()) return;
 
-fs.readdirSync(commandsPath).forEach(file => {
-  if (!file.endsWith(".js")) return;
-
-  const filePath = path.join(commandsPath, file);
-
-  import(`file://${filePath}`)
-    .then(module => {
-      const cmd = module.command || module.default;
-      if (!cmd || !cmd.name || !cmd.run) {
-        console.log(`❌ Commande ignorée (mauvais format) : ${file}`);
-        return;
+  const files = fs.readdirSync(folderPath).filter(f => f.endsWith(".js"));
+  files.forEach(async file => {
+    const filePath = path.join(folderPath, file);
+    try {
+      const cmdModule = await import(pathToFileURL(filePath).href);
+      if (cmdModule.command && cmdModule.command.name && cmdModule.command.run) {
+        client.commands.set(cmdModule.command.name, cmdModule.command.run);
+        console.log(`Commande chargée : ${cmdModule.command.name}`);
       }
-
-      client.commands.set(cmd.name, cmd);
-      console.log(`✔️ Commande chargée : ${cmd.name}`);
-    })
-    .catch(err => console.error(`Erreur chargement ${file} :`, err));
+    } catch (err) {
+      console.error(`Erreur chargement commande ${file}:`, err);
+    }
+  });
 });
 
 // ====== MESSAGE HANDLER ======
-client.on("messageCreate", async message => {
+client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
 
-  const command = client.commands.get(commandName);
-  if (!command) return;
+  const commandFunc = client.commands.get(commandName);
+  if (!commandFunc) return;
 
   try {
-    await command.run(client, message, args);
-  } catch (err) {
-    console.error(err);
-    message.reply("❌ Une erreur est survenue lors de l'exécution de la commande.");
+    await commandFunc(client, message, args, config);
+  } catch (e) {
+    console.error(e);
+    message.reply("❌ Une erreur est survenue.");
   }
 });
 
@@ -72,3 +72,6 @@ client.on("ready", () => {
 
 // ====== LOGIN ======
 client.login(config.token);
+
+// ====== UTIL ======
+import { fileURLToPath, pathToFileURL } from "url";
