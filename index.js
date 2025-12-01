@@ -6,29 +6,40 @@ import express from "express";
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 const prefix = config.prefix;
 
-// ====== KEEP-ALIVE ======
+// ====== KEEP-ALIVE POUR KOYEB ======
 const app = express();
-app.get("/", (req, res) => res.send("Bot Actif 24/7 sur Koyeb"));
-app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
+app.get("/", (req, res) => {
+  res.send("Bot Actif 24/7 sur Koyeb");
+});
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => console.log(`Serveur HTTP actif sur le port ${PORT}`));
 
 // ====== CLIENT ======
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
+// ====== COMMANDES ======
 client.commands = new Collection();
 
-// ====== CHARGEMENT DES COMMANDES ======
-const commandFiles = fs.readdirSync("./Commands").filter(f => f.endsWith(".js"));
+// Charger toutes les commandes
+fs.readdirSync("./Commands").forEach(file => {
+  if (file.endsWith(".js")) {
+    import(`./Commands/${file}`).then(cmd => {
+      if (cmd.name && cmd.run) {
+        client.commands.set(cmd.name, cmd);
+        console.log(`Commande chargée : ${cmd.name}`);
+      }
+    }).catch(err => console.error(`Erreur chargement commande ${file}:`, err));
+  }
+});
 
-for (const file of commandFiles) {
-  const { name, run } = await import(`./Commands/${file}`);
-  client.commands.set(name, { run });
-  console.log(`Commande chargée : ${name}`);
-}
-
-// ====== HANDLER DE MESSAGES ======
-client.on("messageCreate", async (message) => {
+// ====== MESSAGE HANDLER ======
+client.on("messageCreate", async message => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -41,7 +52,7 @@ client.on("messageCreate", async (message) => {
     await command.run(client, message, args);
   } catch (err) {
     console.error(err);
-    message.reply("❌ Une erreur est survenue !");
+    message.reply("❌ Une erreur est survenue.");
   }
 });
 
@@ -51,4 +62,9 @@ client.on("ready", () => {
 });
 
 // ====== LOGIN ======
-client.login(config.token);
+if (!process.env.TOKEN) {
+  console.error("⚠️ Token manquant ! Assurez-vous de configurer la variable d'environnement TOKEN sur Koyeb.");
+  process.exit(1);
+}
+
+client.login(process.env.TOKEN);
