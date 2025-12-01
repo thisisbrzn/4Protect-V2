@@ -1,12 +1,16 @@
 import { Client, GatewayIntentBits, Collection } from "discord.js";
 import fs from "fs";
-import path from "node:path";
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "url";
 
 // ====== CONFIG ======
-const rawConfig = fs.readFileSync("./config.json", "utf8");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const rawConfig = fs.readFileSync(path.join(__dirname, "config.json"), "utf8");
 const config = JSON.parse(rawConfig);
-config.token = process.env.TOKEN;
+config.token = process.env.TOKEN; // token depuis Koyeb
 const prefix = config.prefix;
 
 // ====== KEEP-ALIVE POUR KOYEB ======
@@ -16,73 +20,57 @@ app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
 // ====== CLIENT ======
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 client.commands = new Collection();
 
-// ====== CHARGEMENT DES COMMANDES ======
-const commandsPath = path.join('./Commands');
+// ====== LOAD COMMANDES ======
 const loadCommands = (dir) => {
-    fs.readdirSync(dir).forEach(file => {
-        const filepath = path.join(dir, file);
-        const stat = fs.statSync(filepath);
-        if (stat.isDirectory()) {
-            loadCommands(filepath);
-        } else if (file.endsWith('.js')) {
-            import(filepath).then(module => {
-                const commandFunc = module.command || module.default || module;
-                if (commandFunc && commandFunc.name) {
-                    client.commands.set(commandFunc.name, commandFunc);
-                    console.log(`Commande chargée : ${commandFunc.name}`);
-                }
-            }).catch(err => console.error(`Erreur chargement ${file} :`, err));
+  fs.readdirSync(dir).forEach(file => {
+    const filepath = path.join(dir, file);
+    const stat = fs.statSync(filepath);
+    if (stat.isDirectory()) {
+      loadCommands(filepath); // sous-dossiers
+    } else if (file.endsWith('.js')) {
+      import(`file://${path.resolve(filepath)}`).then(module => {
+        const commandFunc = module.command || module.default || module;
+        if (commandFunc && commandFunc.name) {
+          client.commands.set(commandFunc.name, commandFunc);
+          console.log(`Commande chargée : ${commandFunc.name}`);
         }
-    });
+      }).catch(err => console.error(`Erreur chargement ${file} :`, err));
+    }
+  });
 };
-loadCommands(commandsPath);
 
-// ====== HANDLER DES MESSAGES ======
+loadCommands(path.join(__dirname, "Commands"));
+
+// ====== MESSAGE HANDLER ======
 client.on("messageCreate", async (message) => {
-    if (!message.content.startsWith(prefix) || message.author.bot) return;
+  if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const commandName = args.shift().toLowerCase();
 
-    const command = client.commands.get(commandName);
-    if (!command) return;
+  const commandFunc = client.commands.get(commandName);
+  if (!commandFunc) return;
 
-    try {
-        await command.run(client, message, args, config);
-    } catch (e) {
-        console.error(e);
-        message.reply("❌ Une erreur est survenue.");
-    }
-});
-
-// ====== HANDLER DES INTERACTIONS ======
-client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isStringSelectMenu() && !interaction.isButton()) return;
-
-    // Parcours toutes les commandes qui exportent interactionHandler
-    for (const cmd of client.commands.values()) {
-        if (cmd.interactionHandler) {
-            try {
-                await cmd.interactionHandler(client, interaction, config);
-            } catch (err) {
-                console.error('Erreur interactionHandler:', err);
-            }
-        }
-    }
+  try {
+    await commandFunc.run(client, message, args, config);
+  } catch (e) {
+    console.error(e);
+    message.reply("❌ Une erreur est survenue.");
+  }
 });
 
 // ====== READY ======
 client.on("ready", () => {
-    console.log(`${client.user.tag} est en ligne !`);
+  console.log(`${client.user.tag} est en ligne !`);
 });
 
 // ====== LOGIN ======
