@@ -4,6 +4,9 @@ import express from "express";
 
 // ====== CONFIG ======
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+// On remplace le token par la variable d'environnement
+config.token = process.env.TOKEN;
+
 const prefix = config.prefix;
 
 // ====== KEEP-ALIVE POUR KOYEB ======
@@ -26,7 +29,6 @@ client.commands = new Collection();
 fs.readdirSync("./Commands").forEach(file => {
   if (file.endsWith(".js")) {
     import(`./Commands/${file}`).then(module => {
-      // Si ta commande exporte directement une fonction
       const commandFunction = module.default || module;
       if (typeof commandFunction === "function") {
         client.commands.set(file, commandFunction);
