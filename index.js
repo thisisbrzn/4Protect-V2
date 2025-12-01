@@ -3,18 +3,17 @@ import fs from "fs";
 import path from "path";
 import express from "express";
 
-// ===== CONFIG =====
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 config.token = process.env.TOKEN;
 
 const prefix = config.prefix;
 
-// ===== KEEP-ALIVE KOYEB =====
+// ====== KEEP ALIVE POUR KOYEB ======
 const app = express();
-app.get("/", (req, res) => res.send("Bot Actif 24/7 sur Koyeb"));
+app.get("/", (_, res) => res.send("Bot Actif 24/7 sur Koyeb"));
 app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
-// ===== CLIENT =====
+// ====== CLIENT ======
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -25,56 +24,60 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// ===== CHARGEMENT RECURSIF DES COMMANDES =====
-function loadCommands(directory) {
-  for (const file of fs.readdirSync(directory)) {
-    const fullPath = path.join(directory, file);
-    const stat = fs.statSync(fullPath);
+// ====== LECTURE RECURSIVE DES DOSSIERS ======
+function loadCommands(dir) {
+  const files = fs.readdirSync(dir);
 
-    // Si c'est un dossier → on le charge récursivement
-    if (stat.isDirectory()) {
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+
+    // Sous-dossier → on continue
+    if (fs.statSync(fullPath).isDirectory()) {
       loadCommands(fullPath);
       continue;
     }
 
-    // Charger uniquement les fichiers .js
+    // Fichier JS
     if (file.endsWith(".js")) {
-      import(`./${fullPath}`).then(module => {
-        const command = module.default || module;
-        if (typeof command === "function") {
-          const name = file.replace(".js", "");
-          client.commands.set(name, command);
-          console.log(`✔ Commande chargée : ${name}`);
-        }
-      });
+      import(fullPath)
+        .then(module => {
+          const cmd = module.command;
+
+          if (!cmd || !cmd.name) return;
+
+          client.commands.set(cmd.name, cmd);
+          console.log(`Commande chargée : ${cmd.name}`);
+        })
+        .catch(err => console.error("Erreur chargement commande :", err));
     }
   }
 }
 
-loadCommands("Commands");
+// Charger TOUTES les commandes (même dans /Commands/Modérations etc.)
+loadCommands("./Commands");
 
-// ===== MESSAGE HANDLER =====
-client.on("messageCreate", async (message) => {
+// ====== MESSAGE HANDLER ======
+client.on("messageCreate", async message => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-  const args = message.content.slice(prefix.length).trim().split(/\s+/);
-  const commandName = args.shift().toLowerCase();
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const cmdName = args.shift().toLowerCase();
 
-  const command = client.commands.get(commandName);
-  if (!command) return;
+  const cmd = client.commands.get(cmdName);
+  if (!cmd) return;
 
   try {
-    await command(client, message, args);
+    await cmd.run(client, message, args);
   } catch (err) {
     console.error(err);
-    message.reply("❌ Une erreur est survenue dans la commande.");
+    message.reply("❌ Une erreur est survenue.");
   }
 });
 
-// ===== READY =====
+// ====== READY ======
 client.on("ready", () => {
   console.log(`${client.user.tag} est en ligne !`);
 });
 
-// ===== LOGIN =====
+// ====== LOGIN ======
 client.login(config.token);
