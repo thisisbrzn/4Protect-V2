@@ -1,19 +1,19 @@
 import Discord from "discord.js";
-import express from "express"; // serveur pour uptimerobot
+import express from "express"; // Petit serveur pour uptimerobot
 import { EmbedBuilder } from "discord.js";
-import config from "./config.js";
+import config from "./config.js"; // On utilise config.js, pas JSON
 import { GiveawaysManager } from "discord-giveaways";
 
-// =================== Petit serveur express ===================
+// =================== Serveur express ===================
 const app = express();
 
 app.get("/", (req, res) => {
-  res.send("Bot en ligne!");
+  res.send("Bot en ligne !");
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Serveur HTTP actif sur le port ${PORT}`));
-// =============================================================
+// ========================================================
 
 // =================== Client Discord ===================
 const bot = new Discord.Client({
@@ -34,14 +34,14 @@ bot.slashCommands = new Discord.Collection();
 bot.setMaxListeners(70);
 
 // =================== Connexion du bot ===================
-bot.login(process.env.TOKEN)
+bot.login(config.token)
   .then(() => {
     console.log(`[INFO] > ${bot.user.tag} est connecté`);
     console.log(`[Invite] https://discord.com/oauth2/authorize?client_id=${bot.user.id}&permissions=8&scope=bot`);
     console.log(`[Support] https://dsc.gg/4wip`);
   })
-  .catch((e) => {
-    console.log('\x1b[31m[!] — Please configure a valid bot token or allow all the intents\x1b[0m');
+  .catch(() => {
+    console.log('\x1b[31m[!] — Vérifie ton token ou les intents\x1b[0m');
   });
 
 // =================== Giveaways ===================
@@ -80,8 +80,10 @@ bot.giveawaysManager.on('giveawayEnded', async (giveaway, winners) => {
 });
 
 // =================== Handlers ===================
-const commandHandler = (await import('./Handler/Commands.js')).default(bot);
-const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
-const eventHandler = (await import('./Handler/Events.js')).default(bot);
-const anticrashHandler = (await import('./Handler/anticrash.js')).default;
-anticrashHandler(bot);
+(async () => {
+  const commandHandler = (await import('./Handler/Commands.js')).default(bot);
+  const slashcommandHandler = (await import('./Handler/slashCommands.js')).default(bot);
+  const eventHandler = (await import('./Handler/Events.js')).default(bot);
+  const anticrashHandler = (await import('./Handler/anticrash.js')).default;
+  anticrashHandler(bot);
+})();
