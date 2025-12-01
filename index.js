@@ -1,73 +1,80 @@
 import { Client, GatewayIntentBits, Collection } from "discord.js";
 import fs from "fs";
+import path from "path";
 import express from "express";
 
-// ================== CONFIG ==================
+// ===== CONFIG =====
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
-config.token = process.env.TOKEN; // Token Koyeb
-const prefix = config.prefix;
-const owners = config.owners || []; // Pour éviter erreur si vide
+config.token = process.env.TOKEN;
 
-// ================== KEEP ALIVE KOYEB ==================
+const prefix = config.prefix;
+
+// ===== KEEP-ALIVE KOYEB =====
 const app = express();
-app.get("/", (req, res) => res.send("Bot actif 24/7 sur Koyeb"));
+app.get("/", (req, res) => res.send("Bot Actif 24/7 sur Koyeb"));
 app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
-// ================== CLIENT ==================
+// ===== CLIENT =====
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.MessageContent
   ]
 });
 
 client.commands = new Collection();
 
-// ================== CHARGER COMMANDES ==================
-// Ancien format : chaque fichier exporte simplement une fonction
-fs.readdirSync("./Commands").forEach(file => {
-  if (!file.endsWith(".js")) return;
+// ===== CHARGEMENT RECURSIF DES COMMANDES =====
+function loadCommands(directory) {
+  for (const file of fs.readdirSync(directory)) {
+    const fullPath = path.join(directory, file);
+    const stat = fs.statSync(fullPath);
 
-  import(`./Commands/${file}`)
-    .then(module => {
-      const cmd = module.default || module;
-      if (typeof cmd === "function") {
-        const commandName = file.replace(".js", "");
-        client.commands.set(commandName, cmd);
-        console.log(`Commande chargée : ${commandName}`);
-      }
-    })
-    .catch(err => console.error(`Erreur chargement ${file} :`, err));
-});
+    // Si c'est un dossier → on le charge récursivement
+    if (stat.isDirectory()) {
+      loadCommands(fullPath);
+      continue;
+    }
 
-// ================== MESSAGE HANDLER ==================
+    // Charger uniquement les fichiers .js
+    if (file.endsWith(".js")) {
+      import(`./${fullPath}`).then(module => {
+        const command = module.default || module;
+        if (typeof command === "function") {
+          const name = file.replace(".js", "");
+          client.commands.set(name, command);
+          console.log(`✔ Commande chargée : ${name}`);
+        }
+      });
+    }
+  }
+}
+
+loadCommands("Commands");
+
+// ===== MESSAGE HANDLER =====
 client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const args = message.content.slice(prefix.length).trim().split(/\s+/);
   const commandName = args.shift().toLowerCase();
 
-  const commandFunc = client.commands.get(commandName);
-  if (!commandFunc) return;
-
-  // Vérifie si l'auteur est owner
-  if (commandFunc.requireOwner && !owners.includes(message.author.id)) {
-    return message.reply("❌ Tu n'as pas la permission d'utiliser cette commande.");
-  }
+  const command = client.commands.get(commandName);
+  if (!command) return;
 
   try {
-    await commandFunc(client, message, args);
-  } catch (e) {
-    console.error(e);
-    message.reply("❌ Une erreur est survenue.");
+    await command(client, message, args);
+  } catch (err) {
+    console.error(err);
+    message.reply("❌ Une erreur est survenue dans la commande.");
   }
 });
 
-// ================== READY ==================
+// ===== READY =====
 client.on("ready", () => {
   console.log(`${client.user.tag} est en ligne !`);
 });
 
-// ================== LOGIN ==================
+// ===== LOGIN =====
 client.login(config.token);
