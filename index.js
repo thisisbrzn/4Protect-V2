@@ -8,11 +8,8 @@ const prefix = config.prefix;
 
 // ====== KEEP-ALIVE POUR KOYEB ======
 const app = express();
-app.get("/", (req, res) => {
-  res.send("Bot Actif 24/7 sur Koyeb");
-});
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log(`Serveur HTTP actif sur le port ${PORT}`));
+app.get("/", (req, res) => res.send("Bot Actif 24/7 sur Koyeb"));
+app.listen(8000, () => console.log("Serveur HTTP actif sur le port 8000"));
 
 // ====== CLIENT ======
 const client = new Client({
@@ -23,35 +20,36 @@ const client = new Client({
   ]
 });
 
-// ====== COMMANDES ======
 client.commands = new Collection();
 
-// Charger toutes les commandes
+// ====== CHARGEMENT DES COMMANDES ======
 fs.readdirSync("./Commands").forEach(file => {
   if (file.endsWith(".js")) {
-    import(`./Commands/${file}`).then(cmd => {
-      if (cmd.name && cmd.run) {
-        client.commands.set(cmd.name, cmd);
-        console.log(`Commande chargée : ${cmd.name}`);
+    import(`./Commands/${file}`).then(module => {
+      // Si ta commande exporte directement une fonction
+      const commandFunction = module.default || module;
+      if (typeof commandFunction === "function") {
+        client.commands.set(file, commandFunction);
+        console.log(`Commande chargée : ${file}`);
       }
-    }).catch(err => console.error(`Erreur chargement commande ${file}:`, err));
+    }).catch(err => console.error(`Erreur chargement ${file} :`, err));
   }
 });
 
-// ====== MESSAGE HANDLER ======
-client.on("messageCreate", async message => {
+// ====== HANDLER DES MESSAGES ======
+client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
 
-  const command = client.commands.get(commandName);
-  if (!command) return;
+  const commandFunc = client.commands.get(`${commandName}.js`);
+  if (!commandFunc) return;
 
   try {
-    await command.run(client, message, args);
-  } catch (err) {
-    console.error(err);
+    await commandFunc(client, message, args);
+  } catch (e) {
+    console.error(e);
     message.reply("❌ Une erreur est survenue.");
   }
 });
@@ -62,9 +60,4 @@ client.on("ready", () => {
 });
 
 // ====== LOGIN ======
-if (!process.env.TOKEN) {
-  console.error("⚠️ Token manquant ! Assurez-vous de configurer la variable d'environnement TOKEN sur Koyeb.");
-  process.exit(1);
-}
-
-client.login(process.env.TOKEN);
+client.login(config.token);
